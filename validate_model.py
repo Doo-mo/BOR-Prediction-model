@@ -23,6 +23,10 @@ REQUIRED_SHEETS = ["Input", "PropertyDB", "BOR_Calc", "Measure"]
 # BOR_Calc 시트의 결과 라벨 (수식 보존 확인용)
 RESULT_LABELS = ["★ BOR [%/day]", "★ BOG [kg/h]"]
 
+# OOXML 네임스페이스
+NS_SPREADSHEET = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
+NS_RELATIONSHIPS = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+
 
 def find_label_row(ws, label):
     """워크시트에서 특정 라벨 텍스트가 있는 행 번호를 반환. 없으면 None."""
@@ -68,7 +72,7 @@ def validate_formulas_openpyxl(wb):
 
 def validate_formulas_xml(path):
     """xlsx ZIP 내부의 BOR_Calc 시트 XML에 <f> 태그(수식)가 존재하는지 확인."""
-    ns = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
+    ns = NS_SPREADSHEET
     with zipfile.ZipFile(path, "r") as zf:
         # workbook.xml에서 시트 이름과 파일 경로 매핑
         wb_xml = zf.read("xl/workbook.xml")
@@ -76,7 +80,7 @@ def validate_formulas_xml(path):
         sheet_map = {}
         for sheet in wb_root.iter(f"{{{ns}}}sheet"):
             name = sheet.get("name")
-            rid = sheet.get("{http://schemas.openxmlformats.org/officeDocument/2006/relationships}id")
+            rid = sheet.get(f"{{{NS_RELATIONSHIPS}}}id")
             sheet_map[name] = rid
 
         if "BOR_Calc" not in sheet_map:
@@ -106,7 +110,7 @@ def validate_formulas_xml(path):
         sheet_root = ET.fromstring(sheet_xml)
 
         # <f> 태그 개수 세기
-        formula_tags = list(sheet_root.iter(f"{{{ns}}}f"))
+        formula_tags = list(sheet_root.iter(f"{{{NS_SPREADSHEET}}}f"))
         if not formula_tags:
             print(f"❌ BOR_Calc 시트 XML ({bor_calc_target})에 <f> 수식 태그가 없습니다.")
             return False
@@ -118,11 +122,11 @@ def validate_formulas_xml(path):
 def validate_dropdown(wb):
     """Input 시트에 드롭다운(데이터 유효성) 검사가 존재하는지 확인."""
     ws = wb["Input"]
-    dvs = list(ws.data_validations.dataValidation)
-    if not dvs:
+    data_validation_rules = list(ws.data_validations.dataValidation)
+    if not data_validation_rules:
         print("❌ Input 시트에 드롭다운(데이터 유효성) 검사가 없습니다.")
         return False
-    print(f"  ✔ Input 드롭다운 유효성 검사 확인: {len(dvs)}개 존재")
+    print(f"  ✔ Input 드롭다운 유효성 검사 확인: {len(data_validation_rules)}개 존재")
     return True
 
 
