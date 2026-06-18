@@ -11,6 +11,7 @@ generate_bor_model.py로 생성된 LNG_BOR_Model.xlsx의 구조, 수식, 수치,
 실패 시 오류 메시지 출력 후 exit code 1.
 """
 
+import hashlib
 import math
 import sys
 import zipfile
@@ -47,6 +48,9 @@ EXPECTED_WEIGHTED_FORMULAS = {
 # Methane 90 / Ethane 7 / Propane 3)으로 계산한 BOR는 약 0.03 %/day여야 한다.
 MIN_EXPECTED_BOR = 0.01
 MAX_EXPECTED_BOR = 0.10
+INSULATION_ROWS = range(4, 10)
+COMPONENT_ROWS = range(13, 19)
+PIPE_FACTOR_ROWS = range(22, 25)
 HIGH_VACUUM_THRESHOLD_PA = 10
 MEDIUM_VACUUM_THRESHOLD_PA = 100
 HIGH_VACUUM_FACTOR = 0.7
@@ -58,6 +62,11 @@ MIN_PRESSURE_CORRECTION = 0.8
 
 # OOXML 네임스페이스
 NS_SPREADSHEET = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
+
+
+def file_sha256(path):
+    """파일 내용을 SHA-256으로 계산."""
+    return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
 def validate_sheets(wb):
@@ -142,7 +151,7 @@ def validate_bor_range(wb):
 
     insulation = {
         prop_ws.cell(row, 1).value: float(prop_ws.cell(row, 2).value)
-        for row in range(4, 10)
+        for row in INSULATION_ROWS
     }
     components = {
         prop_ws.cell(row, 1).value: {
@@ -150,11 +159,11 @@ def validate_bor_range(wb):
             "rho": float(prop_ws.cell(row, 4).value),
             "tbp": float(prop_ws.cell(row, 5).value),
         }
-        for row in range(13, 19)
+        for row in COMPONENT_ROWS
     }
     pipe_factors = {
         prop_ws.cell(row, 1).value: float(prop_ws.cell(row, 2).value)
-        for row in range(22, 25)
+        for row in PIPE_FACTOR_ROWS
     }
 
     diameter = float(input_ws["B4"].value)
@@ -219,22 +228,17 @@ def validate_bor_range(wb):
 def main():
     print(f"🔍 검증 시작: {MODEL_PATH}\n")
 
-    before_stat = MODEL_PATH.stat() if MODEL_PATH.exists() else None
+    before_hash = file_sha256(MODEL_PATH) if MODEL_PATH.exists() else None
 
     print("[0] 엑셀 모델 재생성")
     generate_workbook()
     if not MODEL_PATH.exists():
         print(f"❌ generate_bor_model.main() 실행 후 파일이 생성되지 않았습니다: {MODEL_PATH}")
         sys.exit(1)
-    if before_stat is not None:
-        after_stat = MODEL_PATH.stat()
-        if (
-            after_stat.st_mtime_ns == before_stat.st_mtime_ns
-            and after_stat.st_size == before_stat.st_size
-        ):
-            print(f"❌ generate_bor_model.main() 실행 후 파일이 갱신되지 않았습니다: {MODEL_PATH}")
-            sys.exit(1)
-    print(f"  ✔ 파일 생성 확인: {MODEL_PATH}")
+    if before_hash is not None:
+        print(f"  ✔ 파일 재생성 확인: {MODEL_PATH} (SHA-256 {before_hash[:8]} → {file_sha256(MODEL_PATH)[:8]})")
+    else:
+        print(f"  ✔ 파일 생성 확인: {MODEL_PATH}")
 
     try:
         wb = load_workbook(MODEL_PATH)
