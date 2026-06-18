@@ -43,6 +43,8 @@ EXPECTED_WEIGHTED_FORMULAS = {
     "B23": "=(B20*Input!B22+B21*Input!B23+B22*Input!B24)/(Input!B22+Input!B23+Input!B24)",
     "B27": "=(B24*Input!B22+B25*Input!B23+B26*Input!B24)/(Input!B22+Input!B23+Input!B24)",
 }
+MIN_EXPECTED_BOR = 0.01
+MAX_EXPECTED_BOR = 0.10
 
 # OOXML 네임스페이스
 NS_SPREADSHEET = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
@@ -67,19 +69,11 @@ def validate_formula_references(wb):
         actual = ws[cell_ref].value
         if actual != expected:
             errors.append(f"{cell_ref} lookup 수식 오류: {actual!r} != {expected!r}")
-        if isinstance(actual, str) and any(
-            bad_ref in actual for bad_ref in ("Input!B22", "Input!B23", "Input!B24")
-        ):
-            errors.append(f"{cell_ref} lookup이 잘못된 몰분율 열(B열)을 참조합니다: {actual}")
 
     for cell_ref, expected in EXPECTED_WEIGHTED_FORMULAS.items():
         actual = ws[cell_ref].value
         if actual != expected:
             errors.append(f"{cell_ref} 가중평균 수식 오류: {actual!r} != {expected!r}")
-        if isinstance(actual, str) and any(
-            bad_ref in actual for bad_ref in ("Input!C22", "Input!C23", "Input!C24")
-        ):
-            errors.append(f"{cell_ref} 가중평균이 잘못된 단위 열(C열)을 참조합니다: {actual}")
 
     if errors:
         for e in errors:
@@ -195,7 +189,7 @@ def validate_bor_range(wb):
     lng_mass = volume_lng * avg_rho
     bor_percent_day = bog_kg_day / lng_mass * 100
 
-    if not (0.01 <= bor_percent_day <= 0.10):
+    if not (MIN_EXPECTED_BOR <= bor_percent_day <= MAX_EXPECTED_BOR):
         print(f"❌ 독립 계산 BOR 값이 예상 범위를 벗어났습니다: {bor_percent_day:.5f} %/day")
         return False
 
