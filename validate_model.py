@@ -67,14 +67,18 @@ def validate_formula_references(wb):
         actual = ws[cell_ref].value
         if actual != expected:
             errors.append(f"{cell_ref} lookup 수식 오류: {actual!r} != {expected!r}")
-        if isinstance(actual, str) and "Input!B2" in actual:
+        if isinstance(actual, str) and any(
+            bad_ref in actual for bad_ref in ("Input!B22", "Input!B23", "Input!B24")
+        ):
             errors.append(f"{cell_ref} lookup이 잘못된 몰분율 열(B열)을 참조합니다: {actual}")
 
     for cell_ref, expected in EXPECTED_WEIGHTED_FORMULAS.items():
         actual = ws[cell_ref].value
         if actual != expected:
             errors.append(f"{cell_ref} 가중평균 수식 오류: {actual!r} != {expected!r}")
-        if isinstance(actual, str) and "Input!C2" in actual:
+        if isinstance(actual, str) and any(
+            bad_ref in actual for bad_ref in ("Input!C22", "Input!C23", "Input!C24")
+        ):
             errors.append(f"{cell_ref} 가중평균이 잘못된 단위 열(C열)을 참조합니다: {actual}")
 
     if errors:
@@ -202,14 +206,21 @@ def validate_bor_range(wb):
 def main():
     print(f"🔍 검증 시작: {MODEL_PATH}\n")
 
-    if MODEL_PATH.exists():
-        MODEL_PATH.unlink()
+    before_stat = MODEL_PATH.stat() if MODEL_PATH.exists() else None
 
     print("[0] 엑셀 모델 재생성")
     generate_workbook()
     if not MODEL_PATH.exists():
         print(f"❌ generate_bor_model.main() 실행 후 파일이 생성되지 않았습니다: {MODEL_PATH}")
         sys.exit(1)
+    if before_stat is not None:
+        after_stat = MODEL_PATH.stat()
+        if (
+            after_stat.st_mtime_ns == before_stat.st_mtime_ns
+            and after_stat.st_size == before_stat.st_size
+        ):
+            print(f"❌ generate_bor_model.main() 실행 후 파일이 갱신되지 않았습니다: {MODEL_PATH}")
+            sys.exit(1)
     print(f"  ✔ 파일 생성 확인: {MODEL_PATH}")
 
     try:
