@@ -352,7 +352,7 @@ def build_sheet3(wb):
     R_TBP_AVG  = 27   # 평균 비등점
 
     R_SEC_PRES = 28
-    R_P_CORR   = 29   # 압력보정계수
+    R_P_CORR   = 29   # 압력보정계수(선형 근사)
 
     R_SEC_Q    = 30
     R_DT       = 31   # 온도차 ΔT
@@ -446,7 +446,7 @@ def build_sheet3(wb):
         (R_SEC_PRES,"▶ 압력 보정 계산", None, None, None, True),
         (R_P_CORR,  "압력보정계수",
          f"=MAX(0.8,1-(({I}!B8-1.013)*0.05))",
-         "-", "압력↑→비등점↑→BOG↓ (근사, 최소 0.8)", False),
+         "-", "단순 선형 근사(최소 0.8), 정밀 계산은 Antoine 식 기반 고도화 가능", False),
 
         (R_SEC_Q,   "▶ 열침투량 Q 계산", None, None, None, True),
         (R_DT,      "온도차 ΔT [K]",
@@ -469,9 +469,9 @@ def build_sheet3(wb):
         (R_BOG_KGS, "BOG 질량유량 [kg/s]",
          f"=B{R_Q_TOT}/(B{R_HV_AVG}*1000)",
          "kg/s", "= Q_total / ΔHvap[J/kg]", False),
-        (R_BOG_DAY, "BOG 일일 증발량 [kg/day]",
+        (R_BOG_DAY, "BOG 일일 증발량 (중간계산) [kg/day]",
          f"=B{R_BOG_KGS}*86400*B{R_P_CORR}",
-         "kg/day", "= BOG유량 × 86400 × 압력보정", False),
+         "kg/day", "= BOG유량 × 86400 × 압력보정 (중간계산값)", False),
         (R_LNG_M,   "LNG 총 질량 [kg]",
          f"=B{R_V_LNG}*B{R_RHO_AVG}",
          "kg", "= V_LNG × 평균밀도", False),

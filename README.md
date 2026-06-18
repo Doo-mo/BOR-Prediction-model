@@ -1,5 +1,7 @@
 # LNG 탱크 BOR 예측 엑셀 모델
 
+[![Validate LNG BOR Model](https://github.com/Doo-mo/BOR-Prediction-model/actions/workflows/validate.yml/badge.svg)](https://github.com/Doo-mo/BOR-Prediction-model/actions/workflows/validate.yml)
+
 > **BOR = Boil-Off Rate (LNG 증발률, 단위: %/day)**
 >
 > 이 저장소는 LNG(액화천연가스) 극저온 저장 탱크의 **열전달(heat ingress) 기반 증발 가스(BOG) 계산**을 위한 설계 예측용 엑셀 모델을 자동 생성하는 Python 스크립트를 제공합니다.
@@ -16,6 +18,22 @@ python generate_bor_model.py
 
 실행 후 `LNG_BOR_Model.xlsx` 파일이 생성됩니다.  
 엑셀을 열어 **1_입력조건** 시트의 값을 변경하면 **3_BOR계산** 시트의 BOR 결과가 수식으로 자동 갱신됩니다.
+
+---
+
+## 자동 검증 (CI)
+
+GitHub Actions(`.github/workflows/validate.yml`)가 `main` 대상 `push`/`pull_request`와 `workflow_dispatch`에서 아래를 자동 검증합니다.
+
+- `python generate_bor_model.py` 실행(엑셀 재생성 확인)
+- `python validate_model.py` 실행(시트/수식/드롭다운/기본 BOR 수치 검증)
+- 생성된 `LNG_BOR_Model.xlsx` 아티팩트 업로드
+
+로컬에서도 동일하게 검증할 수 있습니다.
+
+```bash
+python validate_model.py
+```
 
 ---
 
