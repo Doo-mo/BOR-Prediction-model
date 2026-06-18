@@ -9,6 +9,15 @@ import generate_bor_model
 
 MODEL_PATH = "LNG_BOR_Model.xlsx"
 REQUIRED_SHEETS = ["1_입력조건", "2_물성DB", "3_BOR계산", "4_계측보정"]
+DROPDOWN_CELLS = [
+    ("B11", "단열재"),
+    ("B15", "배관"),
+    ("B22", "LNG성분1"),
+    ("B23", "LNG성분2"),
+    ("B24", "LNG성분3"),
+]
+BOR_SANITY_RANGE = (0.0, 5.0)
+BOR_DEFAULT_EXPECTED_RANGE = (0.01, 0.10)
 
 
 def fail(message: str) -> None:
@@ -127,15 +136,16 @@ def main() -> int:
 
         # 4) 시트1 드롭다운(데이터 유효성) 검증
         ws1 = wb["1_입력조건"]
-        for coord, name in [("B11", "단열재"), ("B15", "배관"), ("B22", "LNG성분1"), ("B23", "LNG성분2"), ("B24", "LNG성분3")]:
+        for coord, name in DROPDOWN_CELLS:
             if not has_data_validation_for_cell(ws1, coord):
                 fail(f"데이터 유효성 검사 누락: {name} 셀({coord})")
 
         # 5) 수치 검증 (독립 계산)
         bor = calculate_expected_bor_percent_per_day()
-        if not (0.0 < bor < 5.0):
+        if not (BOR_SANITY_RANGE[0] < bor < BOR_SANITY_RANGE[1]):
             fail(f"BOR 값이 비정상 범위입니다: {bor:.6f} %/day")
-        if not (0.01 <= bor <= 0.10):
+        # 기본 입력값(문서의 기준 케이스)이 기대 범위에 드는지도 별도로 확인
+        if not (BOR_DEFAULT_EXPECTED_RANGE[0] <= bor <= BOR_DEFAULT_EXPECTED_RANGE[1]):
             fail(
                 "기본 입력 기준 BOR 예상 범위를 벗어났습니다: "
                 f"{bor:.6f} %/day (기대 약 0.03 부근)"
@@ -143,10 +153,10 @@ def main() -> int:
 
         print(f"✅ 모든 검증 통과 (독립 계산 BOR={bor:.6f} %/day)")
         return 0
-    except Exception as exc:  # noqa: BLE001
+    except (AssertionError, FileNotFoundError, OSError, ValueError, KeyError) as exc:
         print(f"❌ 검증 실패: {exc}", file=sys.stderr)
         return 1
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    sys.exit(main())
