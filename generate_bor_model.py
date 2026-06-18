@@ -504,7 +504,7 @@ def build_sheet3(wb):
 
     ws.freeze_panes = "A3"
     # 시트4에서 참조할 행 번호 반환
-    return ws, R_BOR, R_LNG_M, R_BOG_DAY
+    return ws, R_BOR, R_LNG_M
 
 
 # ════════════════════════════════════════════════════════════════
@@ -614,7 +614,7 @@ def main():
     print("  ✔ 1_입력조건 완료")
     build_sheet2(wb)
     print("  ✔ 2_물성DB 완료")
-    _, row_bor, row_lng_mass, _ = build_sheet3(wb)
+    _, row_bor, row_lng_mass = build_sheet3(wb)
     print("  ✔ 3_BOR계산 완료")
     build_sheet4(wb, row_bor, row_lng_mass)
     print("  ✔ 4_계측보정 완료")
