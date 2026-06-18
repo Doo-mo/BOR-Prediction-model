@@ -86,10 +86,10 @@ def _cw(ws, col, w):
 
 
 # ════════════════════════════════════════════════════════════════
-# 시트 1: 1_입력조건
+# 시트 1: Input (입력조건)
 # ════════════════════════════════════════════════════════════════
 def build_sheet1(wb):
-    ws = wb.create_sheet("1_입력조건")
+    ws = wb.create_sheet("Input")
     _cw(ws, "A", 32); _cw(ws, "B", 22); _cw(ws, "C", 14); _cw(ws, "D", 18)
 
     # 타이틀
@@ -209,10 +209,10 @@ def build_sheet1(wb):
 
 
 # ════════════════════════════════════════════════════════════════
-# 시트 2: 2_물성DB
+# 시트 2: PropertyDB (물성DB)
 # ════════════════════════════════════════════════════════════════
 def build_sheet2(wb):
-    ws = wb.create_sheet("2_물성DB")
+    ws = wb.create_sheet("PropertyDB")
     _cw(ws, "A", 28); _cw(ws, "B", 16); _cw(ws, "C", 18)
     _cw(ws, "D", 16); _cw(ws, "E", 14); _cw(ws, "F", 14)
 
@@ -298,10 +298,10 @@ def build_sheet2(wb):
 
 
 # ════════════════════════════════════════════════════════════════
-# 시트 3: 3_BOR계산
+# 시트 3: BOR_Calc (BOR계산)
 # ════════════════════════════════════════════════════════════════
 def build_sheet3(wb):
-    ws = wb.create_sheet("3_BOR계산")
+    ws = wb.create_sheet("BOR_Calc")
     _cw(ws, "A", 36); _cw(ws, "B", 22); _cw(ws, "C", 14); _cw(ws, "D", 30)
 
     ws.merge_cells("A1:D1")
@@ -317,8 +317,8 @@ def build_sheet3(wb):
     ws.row_dimensions[2].height = 20
 
     # 참조 시트 별칭
-    I = "'1_입력조건'"
-    D = "'2_물성DB'"
+    I = "Input"
+    D = "PropertyDB"
 
     # ──────────────────────────────────────────────────────────────
     # 행 번호 상수 정의 (수식 참조 오류 방지)
@@ -508,10 +508,10 @@ def build_sheet3(wb):
 
 
 # ════════════════════════════════════════════════════════════════
-# 시트 4: 4_계측보정
+# 시트 4: Measure (계측보정)
 # ════════════════════════════════════════════════════════════════
 def build_sheet4(wb, row_bor, row_lng_mass):
-    ws = wb.create_sheet("4_계측보정")
+    ws = wb.create_sheet("Measure")
     _cw(ws, "A", 34); _cw(ws, "B", 22); _cw(ws, "C", 14); _cw(ws, "D", 32)
 
     ws.merge_cells("A1:D1")
@@ -526,8 +526,8 @@ def build_sheet4(wb, row_bor, row_lng_mass):
         _hdr(ws.cell(2, j), t)
     ws.row_dimensions[2].height = 20
 
-    I = "'1_입력조건'"
-    C = "'3_BOR계산'"
+    I = "Input"
+    C = "BOR_Calc"
 
     # ── 실측 입력 섹션 ──
     ws.merge_cells("A3:D3"); _sec(ws["A3"], "▶ 실측 BOG 입력")
@@ -611,18 +611,18 @@ def main():
 
     print("📄 시트 생성 중...")
     build_sheet1(wb)
-    print("  ✔ 1_입력조건 완료")
+    print("  ✔ Input 완료")
     build_sheet2(wb)
-    print("  ✔ 2_물성DB 완료")
+    print("  ✔ PropertyDB 완료")
     _, row_bor, row_lng_mass = build_sheet3(wb)
-    print("  ✔ 3_BOR계산 완료")
+    print("  ✔ BOR_Calc 완료")
     build_sheet4(wb, row_bor, row_lng_mass)
-    print("  ✔ 4_계측보정 완료")
+    print("  ✔ Measure 완료")
 
     output = "LNG_BOR_Model.xlsx"
     wb.save(output)
     print(f"\n✅ 저장 완료: {output}")
-    print("   → 엑셀을 열고 1_입력조건 시트의 값을 변경하면 BOR이 자동 계산됩니다.")
+    print("   → 엑셀을 열고 Input 시트의 값을 변경하면 BOR이 자동 계산됩니다.")
 
 
 if __name__ == "__main__":
