@@ -43,8 +43,18 @@ EXPECTED_WEIGHTED_FORMULAS = {
     "B23": "=(B20*Input!B22+B21*Input!B23+B22*Input!B24)/(Input!B22+Input!B23+Input!B24)",
     "B27": "=(B24*Input!B22+B25*Input!B23+B26*Input!B24)/(Input!B22+Input!B23+Input!B24)",
 }
+# 기본 입력값(직경 4 m, 길이 10 m, 충전율 90%, Perlite(진공), 외기 25 ℃,
+# Methane 90 / Ethane 7 / Propane 3)으로 계산한 BOR는 약 0.03 %/day여야 한다.
 MIN_EXPECTED_BOR = 0.01
 MAX_EXPECTED_BOR = 0.10
+HIGH_VACUUM_THRESHOLD_PA = 10
+MEDIUM_VACUUM_THRESHOLD_PA = 100
+HIGH_VACUUM_FACTOR = 0.7
+MEDIUM_VACUUM_FACTOR = 0.85
+ATMOSPHERIC_VACUUM_FACTOR = 1.0
+REFERENCE_PRESSURE_BAR = 1.013
+PRESSURE_CORRECTION_SLOPE = 0.05
+MIN_PRESSURE_CORRECTION = 0.8
 
 # OOXML 네임스페이스
 NS_SPREADSHEET = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
@@ -174,11 +184,20 @@ def validate_bor_range(wb):
     volume_tank = (math.pi * radius**2 * length) + ((4 / 3) * math.pi * radius**3)
     volume_lng = volume_tank * fill_ratio / 100
 
-    vacuum_factor = 0.7 if vacuum_pa < 10 else 0.85 if vacuum_pa < 100 else 1.0
+    vacuum_factor = (
+        HIGH_VACUUM_FACTOR
+        if vacuum_pa < HIGH_VACUUM_THRESHOLD_PA
+        else MEDIUM_VACUUM_FACTOR
+        if vacuum_pa < MEDIUM_VACUUM_THRESHOLD_PA
+        else ATMOSPHERIC_VACUUM_FACTOR
+    )
     k_eff = insulation[insulation_name] * vacuum_factor
     thermal_resistance = insulation_thickness / (k_eff * area_total)
 
-    pressure_correction = max(0.8, 1 - ((pressure - 1.013) * 0.05))
+    pressure_correction = max(
+        MIN_PRESSURE_CORRECTION,
+        1 - ((pressure - REFERENCE_PRESSURE_BAR) * PRESSURE_CORRECTION_SLOPE),
+    )
     delta_t = ambient_temp - avg_tbp
     q_tank = delta_t / thermal_resistance
     q_pipe = q_tank * (pipe_heat_ratio / 100) * pipe_factors[pipe_state]
