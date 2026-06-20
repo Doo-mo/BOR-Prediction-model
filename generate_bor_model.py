@@ -13,9 +13,13 @@ BOR = Boil-Off Rate (LNG 증발률, 단위: %/day)
 출력: LNG_BOR_Model.xlsx
 """
 
+import os
+import tempfile
+
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.worksheet.datavalidation import DataValidation
+from openpyxl.drawing.image import Image as XLImage
 
 # ── 색상 상수 ──────────────────────────────────────────────────
 CLR_HEADER_BG  = "1F4E79"
@@ -115,9 +119,182 @@ def _cw(ws, col, w):
 
 
 # ════════════════════════════════════════════════════════════════
+# 탱크 도면 이미지 생성 (matplotlib)
+# ════════════════════════════════════════════════════════════════
+# 그림에는 명칭(라벨)만 표기하고 수치는 넣지 않는다.
+# 수치는 Input 시트의 셀 연동 사양 패널에 이미 존재한다.
+TANK_ANNOTATIONS = ["내부체적", "내경", "길이", "단열두께", "진공도", "배관조건"]
+
+
+def _setup_korean_font():
+    """설치된 한글 글꼴이 있으면 matplotlib 기본 글꼴로 설정한다.
+
+    한글 글꼴이 없는 환경에서도 이미지 생성 자체는 실패하지 않도록
+    조용히 기본 글꼴을 사용한다(텍스트만 글꼴 영향).
+    """
+    import matplotlib
+    import matplotlib.font_manager as fm
+
+    preferred = [
+        "NanumGothic", "NanumBarunGothic", "Malgun Gothic", "AppleGothic",
+        "Noto Sans CJK KR", "Noto Sans KR", "Noto Sans CJK JP",
+        "Source Han Sans KR", "UnDotum",
+    ]
+    available = {f.name for f in fm.fontManager.ttflist}
+    for name in preferred:
+        if name in available:
+            matplotlib.rcParams["font.family"] = name
+            break
+    matplotlib.rcParams["axes.unicode_minus"] = False
+
+
+def _capsule_xy(r, half_len, vertical):
+    """반구 단부를 가진 원통(캡슐) 외곽선 좌표를 반환한다.
+
+    vertical=True  : 상하 반구를 가진 수직 원통 (중심 (0,0))
+    vertical=False : 좌우 반구를 가진 수평 원통 (중심 (0,0))
+    r        : 원통 반지름
+    half_len : 원통 직선부 길이의 절반
+    """
+    import numpy as np
+
+    top = np.linspace(0.0, np.pi, 60)
+    bot = np.linspace(np.pi, 2 * np.pi, 60)
+    if vertical:
+        xt = r * np.cos(top); yt = half_len + r * np.sin(top)
+        xb = r * np.cos(bot); yb = -half_len + r * np.sin(bot)
+        xs = np.concatenate([[r], xt, [-r, -r], xb, [r]])
+        ys = np.concatenate([[half_len], yt, [half_len, -half_len], yb, [-half_len]])
+    else:
+        right = np.linspace(np.pi / 2, -np.pi / 2, 60)
+        left = np.linspace(3 * np.pi / 2, np.pi / 2, 60)
+        xr = half_len + r * np.cos(right); yr = r * np.sin(right)
+        xl = -half_len + r * np.cos(left); yl = r * np.sin(left)
+        xs = np.concatenate([[-half_len], xr, [half_len, -half_len], xl, [half_len]])
+        ys = np.concatenate([[r], yr, [-r, -r], yl, [r]])
+    return xs, ys
+
+
+def _draw_tank(ax, vertical):
+    """단열재 층을 가진 원통 탱크 단면을 그리고 한국어 명칭을 주석 표기한다."""
+    from matplotlib.patches import Polygon
+
+    r_in = 1.0          # 내부(탱크) 반지름
+    t_ins = 0.32        # 단열재 두께
+    half_len = 1.7      # 원통 직선부 절반 길이
+    r_out = r_in + t_ins
+
+    clr_ins = "#CFE0F2"     # 단열재 층
+    clr_wall = "#7F8C9B"    # 탱크 외벽
+    clr_liq = "#E8F4FD"     # 내부 공간
+
+    # 단열재(외곽) → 탱크 외벽 → 내부 순서로 채운다.
+    xo, yo = _capsule_xy(r_out, half_len, vertical)
+    ax.add_patch(Polygon(list(zip(xo, yo)), closed=True,
+                         facecolor=clr_ins, edgecolor="#9DB8D6", lw=1.4, zorder=1))
+    xw, yw = _capsule_xy(r_in + 0.06, half_len, vertical)
+    ax.add_patch(Polygon(list(zip(xw, yw)), closed=True,
+                         facecolor=clr_wall, edgecolor="#566573", lw=1.0, zorder=2))
+    xi, yi = _capsule_xy(r_in, half_len, vertical)
+    ax.add_patch(Polygon(list(zip(xi, yi)), closed=True,
+                         facecolor=clr_liq, edgecolor="#4A6E8A", lw=1.0, zorder=3))
+
+    arrow = dict(arrowstyle="->", color="#1F4E79", lw=1.4)
+    dbl = dict(arrowstyle="<->", color="#C0392B", lw=1.4)
+    txt = dict(fontsize=10, color="#1F3864",
+               bbox=dict(boxstyle="round,pad=0.2", fc="white", ec="#9DB8D6", lw=0.8))
+
+    # 단열재 층 라벨은 하단 범례로 표기한다.
+
+    if vertical:
+        # 내부체적
+        ax.annotate("내부체적", xy=(0.0, 0.2), xytext=(2.3, 1.4),
+                    arrowprops=arrow, ha="left", va="center", **txt)
+        # 내경 (수평 양방향 화살표)
+        ax.annotate("", xy=(-r_in, -0.2), xytext=(r_in, -0.2), arrowprops=dbl)
+        ax.text(0.0, -0.55, "내경", ha="center", va="top", **txt)
+        # 길이 (수직 양방향 화살표)
+        ax.annotate("", xy=(-r_out - 0.45, -half_len), xytext=(-r_out - 0.45, half_len),
+                    arrowprops=dbl)
+        ax.text(-r_out - 0.55, 0.0, "길이", ha="right", va="center", rotation=90, **txt)
+        # 단열두께 (단열층을 가로지르는 화살표)
+        ax.annotate("", xy=(r_in, half_len + 0.05), xytext=(r_out, half_len + 0.05),
+                    arrowprops=dbl)
+        ax.annotate("단열두께", xy=((r_in + r_out) / 2, half_len + 0.05),
+                    xytext=(2.3, 2.45), arrowprops=arrow, ha="left", va="center", **txt)
+        # 진공도 (단열층/진공 공간 지시)
+        ax.annotate("진공도", xy=(-(r_in + r_out) / 2, half_len + 0.0),
+                    xytext=(-2.9, 2.4), arrowprops=arrow, ha="left", va="center", **txt)
+        # 배관조건 (상부 배관 표현 + 지시)
+        ax.plot([0.45, 0.45], [r_out + half_len - 0.02, r_out + half_len + 0.7],
+                color="#566573", lw=4, solid_capstyle="round", zorder=4)
+        ax.annotate("배관조건", xy=(0.45, r_out + half_len + 0.55),
+                    xytext=(1.7, 3.2), arrowprops=arrow, ha="left", va="center", **txt)
+        ax.set_xlim(-3.6, 3.6)
+        ax.set_ylim(-3.3, 3.9)
+        ax.set_title("수직형 원통 탱크 (상하 반구)", fontsize=12, color="#1F4E79", pad=8)
+    else:
+        # 내부체적
+        ax.annotate("내부체적", xy=(0.2, 0.0), xytext=(0.0, 2.3),
+                    arrowprops=arrow, ha="center", va="bottom", **txt)
+        # 내경 (수직 양방향 화살표)
+        ax.annotate("", xy=(0.2, -r_in), xytext=(0.2, r_in), arrowprops=dbl)
+        ax.text(0.55, 0.0, "내경", ha="left", va="center", **txt)
+        # 길이 (수평 양방향 화살표)
+        ax.annotate("", xy=(-half_len, -r_out - 0.45), xytext=(half_len, -r_out - 0.45),
+                    arrowprops=dbl)
+        ax.text(0.0, -r_out - 0.6, "길이", ha="center", va="top", **txt)
+        # 단열두께 (단열층을 가로지르는 화살표)
+        ax.annotate("", xy=(half_len + 0.05, r_in), xytext=(half_len + 0.05, r_out),
+                    arrowprops=dbl)
+        ax.annotate("단열두께", xy=(half_len + 0.05, (r_in + r_out) / 2),
+                    xytext=(2.6, 2.1), arrowprops=arrow, ha="left", va="center", **txt)
+        # 진공도 (단열층/진공 공간 지시)
+        ax.annotate("진공도", xy=(-half_len - 0.05, (r_in + r_out) / 2),
+                    xytext=(-3.4, 2.1), arrowprops=arrow, ha="left", va="center", **txt)
+        # 배관조건 (단부 배관 표현 + 지시)
+        ax.plot([r_out + half_len - 0.02, r_out + half_len + 0.8], [0.4, 0.4],
+                color="#566573", lw=4, solid_capstyle="round", zorder=4)
+        ax.annotate("배관조건", xy=(r_out + half_len + 0.6, 0.4),
+                    xytext=(2.6, -1.9), arrowprops=arrow, ha="left", va="center", **txt)
+        ax.set_xlim(-4.2, 4.6)
+        ax.set_ylim(-3.0, 3.0)
+        ax.set_title("수평형 원통 탱크 (좌우 반구 단부)", fontsize=12, color="#1F4E79", pad=8)
+
+    # 단열재 층 범례
+    ax.text(0.0, ax.get_ylim()[0] + 0.18, "■ 바깥 음영 = 단열재 층",
+            ha="center", va="bottom", fontsize=9, color="#1F4E79")
+    ax.set_aspect("equal")
+    ax.axis("off")
+
+
+def render_tank_images(out_dir):
+    """수직형/수평형 탱크 도면 PNG 2장을 생성하고 파일 경로를 반환한다."""
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    _setup_korean_font()
+
+    paths = []
+    for name, vertical, size in (
+        ("tank_vertical.png", True, (4.6, 5.2)),
+        ("tank_horizontal.png", False, (6.0, 4.2)),
+    ):
+        fig, ax = plt.subplots(figsize=size, dpi=150)
+        _draw_tank(ax, vertical)
+        fig.tight_layout()
+        path = os.path.join(out_dir, name)
+        fig.savefig(path, dpi=150, bbox_inches="tight", facecolor="white")
+        plt.close(fig)
+        paths.append(path)
+    return paths
+
+
+# ════════════════════════════════════════════════════════════════
 # 시트 1: Input (입력조건)
 # ════════════════════════════════════════════════════════════════
-def build_sheet1(wb):
+def build_sheet1(wb, img_dir):
     ws = wb.create_sheet("Input")
     _cw(ws, "A", 32); _cw(ws, "B", 22); _cw(ws, "C", 14); _cw(ws, "D", 18)
     _cw(ws, "F", 30); _cw(ws, "G", 18); _cw(ws, "H", 14)
@@ -249,23 +426,22 @@ def build_sheet1(wb):
     dv3.error = "목록에서 선택하세요"; dv3.errorTitle = "입력 오류"
     ws.add_data_validation(dv3); dv3.add(f"B{r['comp1']}:B{r['comp3']}")
 
-    # ── 우측 탱크 도식 + 사양 패널 (고정 형상, 셀 연동 값) ──
-    ws.merge_cells("F3:L3"); _sec(ws["F3"], "▶ 탱크 형상(고정) 및 사양 정보")
+    # ── 우측 탱크 도면(matplotlib 이미지) + 사양 패널 ──
+    # 기존의 셀 채우기/테두리로 그린 탱크 도식과 그림 하단 중복 수치 표는 제거하고,
+    # matplotlib로 생성한 탱크 도면 PNG 2장을 F열 이후(우측)에 삽입한다.
+    # 도면에는 명칭만 표기하며, 수치는 아래 셀 연동 사양 패널에 그대로 둔다.
+    ws.merge_cells("F3:L3"); _sec(ws["F3"], "▶ 탱크 도면 (단열재 층 포함) 및 사양 정보")
 
-    ws.merge_cells("G5:K9")
-    for row_no in range(5, 10):
-        for col in ("G", "H", "I", "J", "K"):
-            c = ws[f"{col}{row_no}"]
-            c.fill = PatternFill("solid", fgColor="D9E1F2")
-            c.border = _thin()
-    for row_no in range(6, 9):
-        for col in ("F", "L"):
-            c = ws[f"{col}{row_no}"]
-            c.fill = PatternFill("solid", fgColor="B4C6E7")
-            c.border = _thin()
-    ws["G5"].value = "원통형 LNG 탱크 (고정)"
-    ws["G5"].font = Font(bold=True, size=10, color="1F3864")
-    ws["G5"].alignment = Alignment(horizontal="center", vertical="center")
+    img_v_path, img_h_path = render_tank_images(img_dir)
+    # 원본 PNG 비율을 유지하도록 목표 너비에 맞춰 높이를 계산한다.
+    img_v = XLImage(img_v_path)
+    img_v.height = round(330 * img_v.height / img_v.width)
+    img_v.width = 330
+    ws.add_image(img_v, "J3")
+    img_h = XLImage(img_h_path)
+    img_h.height = round(430 * img_h.height / img_h.width)
+    img_h.width = 430
+    ws.add_image(img_h, "Q3")
 
     ws.merge_cells("F11:H11"); _sec(ws["F11"], "■ 사양 패널 (셀 연동)")
     panel_rows = [
@@ -702,18 +878,20 @@ def main():
     wb = Workbook()
     del wb[wb.sheetnames[0]]   # 기본 빈 시트 제거
 
-    print("📄 시트 생성 중...")
-    build_sheet1(wb)
-    print("  ✔ Input 완료")
-    build_sheet2(wb)
-    print("  ✔ PropertyDB 완료")
-    _, row_bor, row_lng_mass = build_sheet3(wb)
-    print("  ✔ BOR_Calc 완료")
-    build_sheet4(wb, row_bor, row_lng_mass)
-    print("  ✔ Measure 완료")
+    # 탱크 도면 PNG는 임시 디렉터리에 생성한 뒤 저장 후 정리한다.
+    with tempfile.TemporaryDirectory() as img_dir:
+        print("📄 시트 생성 중...")
+        build_sheet1(wb, img_dir)
+        print("  ✔ Input 완료")
+        build_sheet2(wb)
+        print("  ✔ PropertyDB 완료")
+        _, row_bor, row_lng_mass = build_sheet3(wb)
+        print("  ✔ BOR_Calc 완료")
+        build_sheet4(wb, row_bor, row_lng_mass)
+        print("  ✔ Measure 완료")
 
-    output = "LNG_BOR_Model.xlsx"
-    wb.save(output)
+        output = "LNG_BOR_Model.xlsx"
+        wb.save(output)
     print(f"\n✅ 저장 완료: {output}")
     print("   → 엑셀을 열고 Input 시트의 값을 변경하면 BOR이 자동 계산됩니다.")
 
