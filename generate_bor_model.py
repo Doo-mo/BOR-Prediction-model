@@ -27,6 +27,8 @@ CLR_DB_HDR_BG  = "2E75B6"
 CLR_SECTION_BG = "D9E1F2"
 CLR_CALC_BG    = "E2EFDA"
 
+# Input 시트 레이아웃 행 번호를 한 곳에서 관리해
+# 시트 간 참조(Input/BOR_Calc/Measure) 불일치를 방지한다.
 INPUT_ROWS = {
     "sec_geo": 3,
     "diameter": 4,

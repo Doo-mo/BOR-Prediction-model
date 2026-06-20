@@ -49,12 +49,14 @@ NS_SPREADSHEET = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
 
 
 def _norm_formula(value):
+    """수식 문자열을 공백 제거 + 대문자 변환해 비교 가능하게 정규화."""
     if not isinstance(value, str):
         return value
     return re.sub(r"\s+", "", value).upper()
 
 
 def _find_input_composition_rows(input_ws):
+    """Input 시트에서 LNG 조성 3개 행(성분명/몰분율)을 찾아 행 번호 리스트로 반환."""
     section_row = None
     for row in range(1, input_ws.max_row + 1):
         value = input_ws.cell(row, 1).value
