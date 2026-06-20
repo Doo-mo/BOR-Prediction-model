@@ -433,11 +433,14 @@ def build_sheet1(wb, img_dir):
     ws.merge_cells("F3:L3"); _sec(ws["F3"], "▶ 탱크 도면 (단열재 층 포함) 및 사양 정보")
 
     img_v_path, img_h_path = render_tank_images(img_dir)
+    # 원본 PNG 비율을 유지하도록 목표 너비에 맞춰 높이를 계산한다.
     img_v = XLImage(img_v_path)
-    img_v.width, img_v.height = 330, 348      # 수직형 (원본 비율 유지)
+    img_v.height = round(330 * img_v.height / img_v.width)
+    img_v.width = 330
     ws.add_image(img_v, "J3")
     img_h = XLImage(img_h_path)
-    img_h.width, img_h.height = 430, 316      # 수평형 (원본 비율 유지)
+    img_h.height = round(430 * img_h.height / img_h.width)
+    img_h.width = 430
     ws.add_image(img_h, "Q3")
 
     ws.merge_cells("F11:H11"); _sec(ws["F11"], "■ 사양 패널 (셀 연동)")
